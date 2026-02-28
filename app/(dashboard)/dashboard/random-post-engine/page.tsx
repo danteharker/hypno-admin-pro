@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,9 @@ import {
 import { Rss, Loader2, Copy, Check, Info, Twitter, Facebook, Linkedin, BookOpen } from "lucide-react";
 import type { Platform } from "@/lib/prompts/random-post-engine";
 import { PageHero } from "@/components/dashboard/page-hero";
+import { FeatureLockOverlay } from "@/components/dashboard/feature-lock-overlay";
 import { AnimatedSection } from "@/components/motion/animated-section";
+import { toast } from "sonner";
 
 const PLATFORMS: {
   id: Platform;
@@ -70,6 +73,22 @@ export default function RandomPostEnginePage() {
   const [error, setError] = useState<string | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | "all" | null>(null);
 
+  useEffect(() => {
+    const supabase = createClient();
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("post_engine_services, post_engine_themes, post_engine_expertise")
+        .eq("id", user.id)
+        .single();
+      if (profile?.post_engine_services) setServices(profile.post_engine_services);
+      if (profile?.post_engine_themes) setThemes(profile.post_engine_themes);
+      if (profile?.post_engine_expertise) setExpertise(profile.post_engine_expertise);
+    })();
+  }, []);
+
   const canGenerate =
     services.trim().length > 0 &&
     themes.trim().length > 0 &&
@@ -96,7 +115,9 @@ export default function RandomPostEnginePage() {
       if (!res.ok) throw new Error(data.error || "Generation failed");
       setContent(data.content);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
+      const msg = e instanceof Error ? e.message : "Something went wrong";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -110,23 +131,38 @@ export default function RandomPostEnginePage() {
 
   const handleCopyAll = async () => {
     if (!content) return;
-    await navigator.clipboard.writeText(content);
-    setCopiedIndex("all");
-    setTimeout(() => setCopiedIndex(null), 2000);
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedIndex("all");
+      setTimeout(() => setCopiedIndex(null), 2000);
+      toast.success("Copied to clipboard");
+    } catch {
+      toast.error("Could not copy");
+    }
+  };
+
+  const handleRegenerate = () => {
+    if (canGenerate) handleGenerate();
   };
 
   const handleCopyOne = async (text: string, index: number) => {
     if (!text) return;
-    await navigator.clipboard.writeText(text);
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
+      toast.success("Copied to clipboard");
+    } catch {
+      toast.error("Could not copy");
+    }
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-12">
-      <PageHero
-        icon={Rss}
-        title="Random Post Engine"
+    <FeatureLockOverlay>
+      <div className="max-w-3xl mx-auto space-y-6 pb-12">
+        <PageHero
+          icon={Rss}
+          title="Random Post Engine"
         description="Generate ready-to-publish content tailored to your chosen platform."
         accentColor="teal"
         backHref="/dashboard"
@@ -270,24 +306,36 @@ export default function RandomPostEnginePage() {
             <Card className="border-border/40 accent-bar accent-bar-teal overflow-hidden shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-base">{RESULT_LABEL[platform]}</CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCopyAll}
-                  className="gap-2"
-                >
-                  {copiedIndex === "all" ? (
-                    <>
-                      <Check className="h-4 w-4" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-4 w-4" />
-                      Copy all
-                    </>
-                  )}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRegenerate}
+                    disabled={loading}
+                    className="gap-2"
+                  >
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rss className="h-4 w-4" />}
+                    Regenerate
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopyAll}
+                    className="gap-2"
+                  >
+                    {copiedIndex === "all" ? (
+                      <>
+                        <Check className="h-4 w-4" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4" />
+                        Copy all
+                      </>
+                    )}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {showPerPost ? (
@@ -336,6 +384,7 @@ export default function RandomPostEnginePage() {
           </AnimatedSection>
         );
       })()}
-    </div>
+      </div>
+    </FeatureLockOverlay>
   );
 }

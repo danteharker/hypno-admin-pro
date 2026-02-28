@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateScriptSection, lengthenScriptSection } from "@/lib/openai";
+import { checkAccess, recordUsage } from "@/lib/api-gate";
 import type {
   ScriptCategory,
   DurationKey,
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
     }
     try {
       const content = await lengthenScriptSection(section, existingText);
+      await recordUsage(supabase, user.id, "script_generation");
       return NextResponse.json({ content });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Lengthen failed";
@@ -114,6 +116,7 @@ export async function POST(request: Request) {
       therapeuticApproach,
       clientPronoun,
     });
+    await recordUsage(supabase, user.id, "script_generation");
     return NextResponse.json({ content });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Section generation failed";

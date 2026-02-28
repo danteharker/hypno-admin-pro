@@ -22,7 +22,10 @@ import {
 } from "@/components/ui/card";
 import { ListChecks, Sparkles, Loader2, Copy, Check, FileText, Info } from "lucide-react";
 import { PageHero } from "@/components/dashboard/page-hero";
+import { FeatureLockOverlay } from "@/components/dashboard/feature-lock-overlay";
+import { UsageIndicator } from "@/components/dashboard/usage-indicator";
 import { AnimatedSection } from "@/components/motion/animated-section";
+import { toast } from "sonner";
 
 const TONE_OPTIONS = [
   { id: "calm", label: "Calm" },
@@ -78,28 +81,41 @@ export default function SuggestionsPage() {
       if (!res.ok) throw new Error(data.error || "Generation failed");
       setWording(data.wording);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
+      const msg = e instanceof Error ? e.message : "Something went wrong";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleRegenerate = () => {
+    if (goal.trim()) handleGenerate();
+  };
+
   const handleCopy = async () => {
     if (!wording) return;
-    await navigator.clipboard.writeText(wording);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(wording);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast.success("Copied to clipboard");
+    } catch {
+      toast.error("Could not copy");
+    }
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-12">
-      <PageHero
-        icon={ListChecks}
-        title="Suggestions"
-        description="Choose a goal, tone and suggestion types to get ready-to-read wording."
-        accentColor="emerald"
-        backHref="/dashboard"
-      />
+    <FeatureLockOverlay>
+      <div className="max-w-3xl mx-auto space-y-6 pb-12">
+        <PageHero
+          icon={ListChecks}
+          title="Suggestions"
+          description="Choose a goal, tone and suggestion types to get ready-to-read wording."
+          accentColor="emerald"
+          backHref="/dashboard"
+        />
+        <UsageIndicator type="ai_tool" className="mt-2" />
 
       <AnimatedSection delay={0.05}>
       <div className="rounded-lg border border-border/40 bg-muted/20 px-4 py-3 flex gap-3">
@@ -202,6 +218,16 @@ export default function SuggestionsPage() {
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-base">Ready-to-read wording</CardTitle>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRegenerate}
+                  disabled={loading}
+                  className="gap-2"
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  Regenerate
+                </Button>
                 <Button variant="outline" size="sm" asChild>
                   <Link href="/dashboard/scripts" className="gap-2">
                     <FileText className="h-4 w-4" />
@@ -236,6 +262,7 @@ export default function SuggestionsPage() {
           </Card>
         </AnimatedSection>
       )}
-    </div>
+      </div>
+    </FeatureLockOverlay>
   );
 }

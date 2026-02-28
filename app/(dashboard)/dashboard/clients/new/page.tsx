@@ -18,6 +18,7 @@ import { ArrowLeft, UserPlus, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 
 const FOCUS_OPTIONS = [
   { id: "focus-anxiety", label: "Anxiety / Stress", value: "Anxiety" },
@@ -78,11 +79,14 @@ export default function NewClientPage() {
         .single();
       if (insertError) {
         setError(insertError.message);
+        toast.error(insertError.message);
         return;
       }
+      toast.success("Client created");
       router.push(`/dashboard/clients/${client.id}`);
     } catch {
       setError("Something went wrong. Try again.");
+      toast.error("Something went wrong. Try again.");
     } finally {
       setIsSaving(false);
     }

@@ -17,6 +17,8 @@ import {
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { mixAndExportMp3 } from "@/lib/audio-mixer";
+import { FeatureLockOverlay } from "@/components/dashboard/feature-lock-overlay";
+import { UsageIndicator } from "@/components/dashboard/usage-indicator";
 import { WizardProgress } from "@/components/audio-studio/wizard-progress";
 import { Step1ChooseScript, type ScriptOption, type LibraryScriptOption } from "@/components/audio-studio/step-1-choose-script";
 import { Step2ChooseVoice } from "@/components/audio-studio/step-2-choose-voice";
@@ -383,9 +385,10 @@ export default function AudioStudioNewPage() {
     setSaveError(null);
     try {
       const id = crypto.randomUUID();
-      const filePath = `${user.id}/${id}.mp3`;
+      const isWebm = !!recordedBlob;
+      const filePath = `${user.id}/${id}.${isWebm ? "webm" : "mp3"}`;
       const blob = voiceBlobForSaveOrDownload;
-      const contentType = recordedBlob ? "audio/webm" : uploadedVoiceFile ? (uploadedVoiceFile.type || "audio/mpeg") : "audio/mpeg";
+      const contentType = isWebm ? "audio/webm" : uploadedVoiceFile ? (uploadedVoiceFile.type || "audio/mpeg") : "audio/mpeg";
       const { error: uploadError } = await supabase.storage
         .from(BUCKET)
         .upload(filePath, blob, {
@@ -557,20 +560,22 @@ export default function AudioStudioNewPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto w-full pb-12">
-      <div className="flex items-center gap-4">
-        <Link href="/dashboard/audio" className="text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Audio Studio</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Turn scripts into professional audio sessions. Layer voices, ambient sounds, and binaural beats.
-          </p>
+    <FeatureLockOverlay>
+      <div className="space-y-6 max-w-6xl mx-auto w-full pb-12">
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard/audio" className="text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Audio Studio</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Turn scripts into professional audio sessions. Layer voices, ambient sounds, and binaural beats.
+            </p>
+            <UsageIndicator type="audio_generation" className="mt-2" />
+          </div>
         </div>
-      </div>
 
-      <WizardProgress currentStep={currentStep} />
+        <WizardProgress currentStep={currentStep} />
 
       {/* Step 1: Choose script */}
       {currentStep === 1 && (
@@ -707,6 +712,7 @@ export default function AudioStudioNewPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </FeatureLockOverlay>
   );
 }

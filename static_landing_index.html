@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hypno Admin Pro — For professional hypnotherapists</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; color: #1a1a1a; background: #fff; line-height: 1.5; }
+    .container { max-width: 48rem; margin: 0 auto; padding: 0 1rem; }
+    .container-narrow { max-width: 36rem; margin: 0 auto; padding: 0 1rem; }
+    header { border-bottom: 1px solid #e5e5e5; padding: 1rem 1.5rem; }
+    .header-inner { max-width: 72rem; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+    .logo { font-size: 1.25rem; font-weight: 600; }
+    nav { display: flex; align-items: center; gap: 1.5rem; }
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .btn { display: inline-block; padding: 0.75rem 1.5rem; background: #1a1a1a; color: #fff; border-radius: 9999px; font-weight: 500; border: none; cursor: pointer; font-size: 1rem; }
+    .btn:hover { background: #333; text-decoration: none; }
+    .btn-ghost { background: transparent; color: #1a1a1a; }
+    .btn-ghost:hover { background: #f5f5f5; }
+    main { }
+    section { padding: 4rem 1.5rem; border-bottom: 1px solid #e5e5e5; }
+    .hero { padding: 5rem 1.5rem; text-align: center; background: linear-gradient(180deg, #f8fafc 0%, #fff 100%); }
+    .hero h1 { font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 500; margin: 0; max-width: 36rem; margin-left: auto; margin-right: auto; line-height: 1.15; }
+    .hero .italic { font-style: italic; }
+    .hero p { margin: 1.5rem 0 0; font-size: 1.125rem; color: #64748b; max-width: 32rem; margin-left: auto; margin-right: auto; }
+    .hero .btns { margin-top: 2rem; }
+    .hero .note { margin-top: 1rem; font-size: 0.875rem; color: #64748b; }
+    .trust-bar { background: #f1f5f9; padding: 1.5rem; text-align: center; font-size: 0.875rem; color: #475569; }
+    h2 { font-size: 1.875rem; font-weight: 500; text-align: center; margin: 0; }
+    .section p { text-align: center; margin: 1.5rem auto 0; color: #64748b; max-width: 40rem; }
+    .pricing-box { margin-top: 2rem; padding: 2.5rem; border: 1px solid #e5e5e5; border-radius: 1.5rem; text-align: center; max-width: 28rem; margin-left: auto; margin-right: auto; }
+    .pricing-box .price { font-size: 2.25rem; font-weight: 500; }
+    .pricing-box ul { text-align: left; margin: 1.5rem 0; padding-left: 1.5rem; color: #64748b; font-size: 0.875rem; line-height: 1.8; max-width: 16rem; margin-left: auto; margin-right: auto; }
+    .pricing-box .btn { margin-top: 2rem; }
+    .pricing-box .small { margin-top: 1rem; font-size: 0.75rem; color: #64748b; }
+    footer { padding: 2.5rem 1.5rem; border-top: 1px solid #e5e5e5; }
+    .footer-tagline { text-align: center; font-size: 0.875rem; color: #64748b; margin-bottom: 1.5rem; }
+    .footer-inner { max-width: 72rem; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.5rem; }
+    .footer-brand .name { font-size: 1.125rem; font-weight: 500; }
+    .footer-brand .desc { font-size: 0.875rem; color: #64748b; margin-top: 0.25rem; max-width: 16rem; }
+    .footer-nav { display: flex; gap: 1.5rem; font-size: 0.875rem; }
+    .footer-nav a { color: #64748b; }
+    .footer-nav a:hover { color: #1a1a1a; }
+    .footer-copy { margin-top: 2rem; text-align: center; font-size: 0.75rem; color: #64748b; }
+    .footer-copy a { color: #1a1a1a; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <span class="logo">Hypno Admin Pro</span>
+      <nav>
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#roadmap">Roadmap</a>
+        <a href="/login" class="btn btn-ghost">Sign in</a>
+        <a href="/register" class="btn">Get started</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>You became a therapist to transform lives, <span class="italic">not wrestle with software.</span></h1>
+      <p>Designed by a hypnotherapist, for hypnotherapists. The all-in-one workspace that handles your scripts, audio, and marketing behind the scenes, so you can focus on your clients.</p>
+      <div class="btns">
+        <a href="/register" class="btn">Start free trial</a>
+      </div>
+      <p class="note">14-day free trial. No tech skills needed. Cancel anytime.</p>
+    </section>
+
+    <section class="trust-bar">
+      <div class="container">
+        Designed by a hypnotherapist, for hypnotherapists · No tech skills needed · Your data stays yours
+      </div>
+    </section>
+
+    <section id="roadmap">
+      <div class="container">
+        <h2>Built by a hypnotherapist with 25 years of experience.</h2>
+        <p>We're adding the same tools we use in practice—so you can use them too.</p>
+      </div>
+    </section>
+
+    <section id="pricing">
+      <div class="container-narrow">
+        <h2>Simple pricing</h2>
+        <p>One plan. No decision fatigue.</p>
+        <div class="pricing-box">
+          <p class="price">£8/month</p>
+          <ul>
+            <li>Unlimited AI scripts & Script Library</li>
+            <li>Suggestions & Affirmations generators</li>
+            <li>Tool Generator & Reflection Room</li>
+            <li>Audio Studio & Session teleprompter</li>
+            <li>Client management</li>
+            <li>Social Media Post Engine</li>
+          </ul>
+          <a href="/register" class="btn">Start free trial</a>
+          <p class="small">Cancel before your trial ends and you won't be charged.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="container-narrow" style="text-align: center;">
+        <h2>Spend less time on admin. More time doing what you love.</h2>
+        <p>14-day free trial — no risk, cancel anytime.</p>
+        <a href="/register" class="btn" style="margin-top: 2rem;">Create your account</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p class="footer-tagline">Spend less time on admin. More time doing what you love.</p>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <p class="name">Hypno Admin Pro</p>
+        <p class="desc">Your practice, one workspace. For professional hypnotherapists.</p>
+      </div>
+      <nav class="footer-nav">
+        <a href="/terms">Terms</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/login">Sign in</a>
+        <a href="/register">Get started</a>
+      </nav>
+    </div>
+    <p class="footer-copy">
+      Built by <a href="https://danteharker.com" target="_blank" rel="noopener noreferrer">Dante Harker</a> · © 2025 Dante Harker. For professional use only.
+    </p>
+  </footer>
+</body>
+</html>

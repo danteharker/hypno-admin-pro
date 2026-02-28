@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,6 +29,8 @@ import { ArrowLeft, Save, Play, Download, Trash2, Copy, Clock, Tags, FileText, L
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "sonner";
 
 const CATEGORIES = [
   { value: "relaxation", label: "Deep Relaxation" },
@@ -67,6 +69,98 @@ export default function ScriptEditorPage() {
   const [tagInput, setTagInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [pendingNav, setPendingNav] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "unsaved">("idle");
+  const lastSavedRef = useRef({ title: "", content: "", category: "", tags: "" });
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isDirty =
+    script &&
+    (title !== lastSavedRef.current.title ||
+      content !== lastSavedRef.current.content ||
+      category !== lastSavedRef.current.category ||
+      tags.join(",") !== lastSavedRef.current.tags);
+
+  const handleSave = useCallback(async () => {
+    if (!id || !script) return;
+    setIsSaving(true);
+    setSaveError(null);
+    setSaveStatus("saving");
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setIsSaving(false);
+      setSaveStatus("unsaved");
+      return;
+    }
+    const { error } = await supabase
+      .from("scripts")
+      .update({
+        title,
+        content,
+        category: category || null,
+        tags,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("user_id", user.id);
+    if (error) {
+      setSaveError(error.message);
+      setSaveStatus("unsaved");
+      toast.error("Could not save script");
+    } else {
+      lastSavedRef.current = { title, content, category, tags: tags.join(",") };
+      setSaveStatus("saved");
+      toast.success("Script saved");
+      if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
+      savedTimeoutRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
+    }
+    setIsSaving(false);
+  }, [id, script, title, content, category, tags]);
+
+  useEffect(() => {
+    if (!script || !isDirty) return;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    setSaveStatus("unsaved");
+    autosaveTimerRef.current = setTimeout(() => {
+      handleSave();
+      autosaveTimerRef.current = null;
+    }, 3000);
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [title, content, category, tags, isDirty, script, handleSave]);
+
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        if (script && !isSaving) handleSave();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [script, isSaving, handleSave]);
+
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
+
+  useEffect(() => {
+    return () => {
+      if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!id) {
@@ -96,39 +190,26 @@ export default function ScriptEditorPage() {
       setTitle(data.title ?? "");
       setContent(data.content ?? "");
       setCategory(data.category ?? "relaxation");
-      setTags(Array.isArray(data.tags) ? data.tags : []);
+      const tagsArr = Array.isArray(data.tags) ? data.tags : [];
+      setTags(tagsArr);
+      lastSavedRef.current = {
+        title: data.title ?? "",
+        content: data.content ?? "",
+        category: data.category ?? "relaxation",
+        tags: tagsArr.join(","),
+      };
       setLoading(false);
     })();
   }, [id, router]);
 
-  const handleSave = async () => {
-    if (!id || !script) return;
-    setIsSaving(true);
-    setSaveError(null);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { error } = await supabase
-      .from("scripts")
-      .update({
-        title,
-        content,
-        category: category || null,
-        tags,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .eq("user_id", user.id);
-    if (error) setSaveError(error.message);
-    setIsSaving(false);
-  };
-
   const handleDelete = async () => {
-    if (!id || !confirm("Delete this script? This cannot be undone.")) return;
+    if (!id) return;
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    await supabase.from("scripts").delete().eq("id", id).eq("user_id", user.id);
+    const { error } = await supabase.from("scripts").delete().eq("id", id).eq("user_id", user.id);
+    if (error) toast.error("Could not delete script");
+    else toast.success("Script deleted");
     router.push("/dashboard/scripts");
   };
 
@@ -147,7 +228,10 @@ export default function ScriptEditorPage() {
       })
       .select("id")
       .single();
-    if (!error && newScript) router.push(`/dashboard/scripts/${newScript.id}`);
+    if (!error && newScript) {
+      toast.success("Script duplicated");
+      router.push(`/dashboard/scripts/${newScript.id}`);
+    } else toast.error("Could not duplicate script");
   };
 
   const handleExportPdf = () => {
@@ -188,7 +272,16 @@ export default function ScriptEditorPage() {
       <div className="no-print flex flex-col h-[calc(100vh-theme(spacing.14)-theme(spacing.8))] w-full max-w-7xl mx-auto space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4 flex-1">
-            <Link href="/dashboard/scripts">
+            <Link
+              href="/dashboard/scripts"
+              onClick={(e) => {
+                if (isDirty) {
+                  e.preventDefault();
+                  setPendingNav("/dashboard/scripts");
+                  setLeaveConfirmOpen(true);
+                }
+              }}
+            >
               <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
@@ -217,7 +310,12 @@ export default function ScriptEditorPage() {
               <Copy className="h-4 w-4 mr-2" />
               Duplicate
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={isSaving}>
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              {saveStatus === "saving" && "Saving..."}
+              {saveStatus === "saved" && "Saved"}
+              {saveStatus === "unsaved" && "Unsaved changes"}
+            </span>
+            <Button size="sm" onClick={() => handleSave()} disabled={isSaving}>
               <Save className="h-4 w-4 mr-2" />
               {isSaving ? "Saving..." : "Save Script"}
             </Button>
@@ -305,7 +403,7 @@ export default function ScriptEditorPage() {
                   <Copy className="h-4 w-4 mr-2" />
                   Duplicate Script
                 </Button>
-                <Button variant="destructive" size="sm" className="w-full" onClick={handleDelete}>
+                <Button variant="destructive" size="sm" className="w-full" onClick={() => setDeleteOpen(true)}>
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete Script
                 </Button>
@@ -314,6 +412,33 @@ export default function ScriptEditorPage() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete script"
+        description="Are you sure you want to delete this script? This action cannot be undone."
+        confirmLabel="Delete script"
+        onConfirm={handleDelete}
+      />
+
+      <ConfirmDialog
+        open={leaveConfirmOpen}
+        onOpenChange={(open) => {
+          setLeaveConfirmOpen(open);
+          if (!open) setPendingNav(null);
+        }}
+        title="Unsaved changes"
+        description="You have unsaved changes. Leave anyway? Your changes will be lost."
+        confirmLabel="Leave"
+        cancelLabel="Stay"
+        variant="destructive"
+        onConfirm={() => {
+          if (pendingNav) router.push(pendingNav);
+          setLeaveConfirmOpen(false);
+          setPendingNav(null);
+        }}
+      />
 
       {/* Print-only view for Export / Save as PDF */}
       <div

@@ -22,6 +22,7 @@
 
 # misc
 .DS_Store
+__pycache__/
 *.pem
 .cursor/
 therapy-desk/
@@ -36,6 +37,10 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+
+# Bluehost FTP credentials (contain passwords)
+BLUEHOST_NEW_SITE_SETUP.md
+ftp_connect.py
 
 # vercel
 .vercel

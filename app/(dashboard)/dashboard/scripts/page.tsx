@@ -50,6 +50,8 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { PageHero } from "@/components/dashboard/page-hero";
 import { AnimatedSection } from "@/components/motion/animated-section";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "sonner";
 
 type ScriptRow = {
   id: string;
@@ -112,6 +114,9 @@ export default function ScriptsPage() {
   const [editInstructions, setEditInstructions] = useState("");
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const supabase = createClient();
@@ -150,6 +155,8 @@ export default function ScriptsPage() {
       (s.category && s.category.toLowerCase().includes(q))
     );
   });
+  const paginatedScripts = filtered.slice(0, page * PAGE_SIZE);
+  const hasMore = filtered.length > paginatedScripts.length;
 
   const filteredLibrary = libraryScripts.filter((s) => {
     const q = librarySearch.toLowerCase();
@@ -159,11 +166,15 @@ export default function ScriptsPage() {
     );
   });
 
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
   const useLibraryScript = async (lib: LibraryScriptRow) => {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data: newScript } = await supabase
+    const { data: newScript, error } = await supabase
       .from("scripts")
       .insert({
         user_id: user.id,
@@ -173,7 +184,11 @@ export default function ScriptsPage() {
       })
       .select("id")
       .single();
-    if (newScript) router.push(`/dashboard/scripts/${newScript.id}`);
+    if (error) toast.error("Could not add script");
+    else if (newScript) {
+      toast.success("Script added to My Scripts");
+      router.push(`/dashboard/scripts/${newScript.id}`);
+    }
   };
 
   const submitEditWithAI = async () => {
@@ -216,9 +231,11 @@ export default function ScriptsPage() {
       }
       setEditWithAI(null);
       setEditInstructions("");
+      toast.success("Revised script created");
       router.push(`/dashboard/scripts/${newScript.id}`);
     } catch {
       setEditError("Something went wrong");
+      toast.error("Something went wrong");
     } finally {
       setEditSubmitting(false);
     }
@@ -243,7 +260,7 @@ export default function ScriptsPage() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data: newScript } = await supabase
+    const { data: newScript, error } = await supabase
       .from("scripts")
       .insert({
         user_id: user.id,
@@ -253,16 +270,24 @@ export default function ScriptsPage() {
       })
       .select("id")
       .single();
-    if (newScript) router.push(`/dashboard/scripts/${newScript.id}`);
+    if (error) toast.error("Could not duplicate script");
+    else if (newScript) {
+      toast.success("Script duplicated");
+      router.push(`/dashboard/scripts/${newScript.id}`);
+    }
   };
 
   const deleteScript = async (id: string) => {
-    if (!confirm("Delete this script? This cannot be undone.")) return;
     setDeletingId(id);
     const supabase = createClient();
-    await supabase.from("scripts").delete().eq("id", id);
-    setScripts((prev) => prev.filter((x) => x.id !== id));
+    const { error } = await supabase.from("scripts").delete().eq("id", id);
+    if (error) toast.error("Could not delete script");
+    else {
+      toast.success("Script deleted");
+      setScripts((prev) => prev.filter((x) => x.id !== id));
+    }
     setDeletingId(null);
+    setDeleteTarget(null);
   };
 
   return (
@@ -327,8 +352,9 @@ export default function ScriptsPage() {
           )}
         </div>
       ) : (
-        <div className="rounded-2xl border border-border/40 bg-card/50 shadow-sm overflow-hidden backdrop-blur-sm accent-bar accent-bar-emerald">
-          <Table className="[&_tr]:border-border/40">
+        <>
+        <div className="rounded-2xl border border-border/40 bg-card/50 shadow-sm overflow-x-auto backdrop-blur-sm accent-bar accent-bar-emerald">
+          <Table className="[&_tr]:border-border/40 min-w-[600px]">
             <TableHeader className="bg-muted/10">
               <TableRow className="hover:bg-transparent">
                 <TableHead className="w-[300px] py-4 text-xs font-medium uppercase tracking-wider text-muted-foreground/80">
@@ -350,7 +376,7 @@ export default function ScriptsPage() {
               </TableRow>
             </TableHeader>
             <TableBody className="text-sm">
-              {filtered.map((script) => (
+              {paginatedScripts.map((script) => (
                 <TableRow
                   key={script.id}
                   className="group transition-colors hover:bg-muted/20"
@@ -413,8 +439,8 @@ export default function ScriptsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-destructive/10 hover:text-destructive"
-                        onClick={() => deleteScript(script.id)}
+                        className="h-8 w-8 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity rounded-full hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => setDeleteTarget(script.id)}
                         disabled={deletingId === script.id}
                         aria-label="Delete script"
                       >
@@ -428,7 +454,7 @@ export default function ScriptsPage() {
                         <DropdownMenuTrigger asChild>
                           <Button
                             variant="ghost"
-                            className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-muted/50"
+                            className="h-8 w-8 p-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity rounded-full hover:bg-muted/50"
                           >
                             <span className="sr-only">Open menu</span>
                             <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
@@ -463,14 +489,10 @@ export default function ScriptsPage() {
                         <DropdownMenuSeparator className="bg-border/40 my-1" />
                         <DropdownMenuItem
                           className="text-destructive rounded-lg cursor-pointer text-sm focus:bg-destructive/10 focus:text-destructive"
-                          onClick={() => deleteScript(script.id)}
+                          onClick={() => setDeleteTarget(script.id)}
                           disabled={deletingId === script.id}
                         >
-                          {deletingId === script.id ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="mr-2 h-4 w-4" />
-                          )}
+                          <Trash2 className="mr-2 h-4 w-4" />
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -482,6 +504,14 @@ export default function ScriptsPage() {
             </TableBody>
           </Table>
         </div>
+        {hasMore && (
+          <div className="flex justify-center pt-4">
+            <Button variant="outline" onClick={() => setPage((p) => p + 1)} className="rounded-xl">
+              Load more ({filtered.length - paginatedScripts.length} remaining)
+            </Button>
+          </div>
+        )}
+        </>
       )}
         </TabsContent>
 
@@ -508,7 +538,7 @@ export default function ScriptsPage() {
             <div className="rounded-2xl border border-border/40 bg-card/50 p-12 text-center">
               <Library className="h-12 w-12 mx-auto text-muted-foreground/60 mb-4" />
               <p className="text-muted-foreground">
-                No library scripts yet. Add some via <code className="text-xs bg-muted px-1 rounded">data/library-scripts.json</code> and run <code className="text-xs bg-muted px-1 rounded">npm run seed:library</code>.
+                No library scripts available yet. Check back soon — we&apos;re adding new scripts regularly.
               </p>
             </div>
           ) : (
@@ -574,6 +604,16 @@ export default function ScriptsPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete script"
+        description="Are you sure you want to delete this script? This action cannot be undone."
+        confirmLabel="Delete script"
+        loading={!!deletingId}
+        onConfirm={() => deleteTarget && deleteScript(deleteTarget)}
+      />
 
       <Dialog open={!!editWithAI} onOpenChange={(open) => !open && setEditWithAI(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">

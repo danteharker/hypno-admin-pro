@@ -3,19 +3,25 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { PageHero } from "@/components/dashboard/page-hero";
-import { Settings, LogOut, Loader2, Mail, User } from "lucide-react";
+import { useSubscription } from "@/lib/subscription-context";
+import { Settings, LogOut, Loader2, Mail, User, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { Textarea } from "@/components/ui/textarea";
 import { createClient } from "@/lib/supabase/client";
 import { AnimatedSection } from "@/components/motion/animated-section";
+import { toast } from "sonner";
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { status, trialDaysRemaining } = useSubscription();
   const [email, setEmail] = useState<string>("");
   const [fullName, setFullName] = useState<string>("");
+  const [postEngineServices, setPostEngineServices] = useState<string>("");
+  const [postEngineThemes, setPostEngineThemes] = useState<string>("");
+  const [postEngineExpertise, setPostEngineExpertise] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -33,10 +39,13 @@ export default function SettingsPage() {
       setEmail(user.email ?? "");
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("full_name, post_engine_services, post_engine_themes, post_engine_expertise")
         .eq("id", user.id)
         .single();
       setFullName(profile?.full_name ?? "");
+      setPostEngineServices(profile?.post_engine_services ?? "");
+      setPostEngineThemes(profile?.post_engine_themes ?? "");
+      setPostEngineExpertise(profile?.post_engine_expertise ?? "");
       setLoading(false);
     })();
   }, []);
@@ -51,15 +60,34 @@ export default function SettingsPage() {
     setSaveMessage(null);
     const { error } = await supabase
       .from("profiles")
-      .update({ full_name: fullName.trim() || null })
+      .update({
+        full_name: fullName.trim() || null,
+        post_engine_services: postEngineServices.trim() || null,
+        post_engine_themes: postEngineThemes.trim() || null,
+        post_engine_expertise: postEngineExpertise.trim() || null,
+      })
       .eq("id", user.id);
     setSaving(false);
     if (error) {
       setSaveMessage("Could not save. Try again.");
+      toast.error("Could not save. Try again.");
       return;
     }
     setSaveMessage("Saved.");
+    toast.success("Profile saved");
     setTimeout(() => setSaveMessage(null), 2000);
+  };
+
+  const handleManageBilling = async () => {
+    const res = await fetch("/api/stripe/portal", { method: "POST" });
+    const data = await res.json();
+    if (data?.url) window.location.href = data.url;
+  };
+
+  const handleResubscribe = async () => {
+    const res = await fetch("/api/stripe/checkout", { method: "POST" });
+    const data = await res.json();
+    if (data?.url) window.location.href = data.url;
   };
 
   const handleSignOut = async () => {
@@ -139,14 +167,106 @@ export default function SettingsPage() {
         </Card>
       </AnimatedSection>
 
+      <AnimatedSection delay={0.08}>
+        <Card className="border-border/40 shadow-sm">
+          <CardHeader>
+            <CardTitle className="font-serif flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-muted-foreground" />
+              Subscription
+            </CardTitle>
+            <CardDescription>
+              {status === "trialing" && trialDaysRemaining != null && (
+                <>Your trial ends in {trialDaysRemaining} day{trialDaysRemaining !== 1 ? "s" : ""}.</>
+              )}
+              {status === "active" && "Your subscription is active."}
+              {(status === "expired" || status === "cancelled") && "Your subscription is inactive."}
+              {status === "incomplete" && "Complete signup to start your 14-day free trial."}
+              {status === "past_due" && "We couldn&apos;t process your payment. Update your card."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                status === "active" ? "bg-primary/15 text-primary" :
+                status === "trialing" ? "bg-chart-2/20 text-chart-2" :
+                status === "incomplete" ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" :
+                "bg-muted text-muted-foreground"
+              }`}>
+                {status === "trialing" ? "Trialing" : status === "active" ? "Active" : status === "past_due" ? "Past due" : status === "incomplete" ? "Incomplete" : "Inactive"}
+              </span>
+            </div>
+            {(status === "trialing" || status === "active") && (
+              <Button variant="outline" onClick={handleManageBilling} className="rounded-xl">
+                <CreditCard className="h-4 w-4 mr-2" />
+                Manage billing
+              </Button>
+            )}
+            {(status === "expired" || status === "cancelled") && (
+              <Button onClick={handleResubscribe} className="rounded-xl">
+                Resubscribe for £8/month
+              </Button>
+            )}
+            {status === "incomplete" && (
+              <Button onClick={handleResubscribe} className="rounded-xl">
+                Start free trial
+              </Button>
+            )}
+            {status === "past_due" && (
+              <Button onClick={handleManageBilling} className="rounded-xl">
+                Update payment method
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </AnimatedSection>
+
       <AnimatedSection delay={0.1}>
         <Card className="border-border/40 shadow-sm">
           <CardHeader>
-            <CardTitle className="font-serif">Appearance</CardTitle>
-            <CardDescription>Choose light, dark, or system theme.</CardDescription>
+            <CardTitle className="font-serif">Post Engine defaults</CardTitle>
+            <CardDescription>These pre-fill the Random Post Engine so you don&apos;t re-enter them each time.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <ThemeToggle />
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="post-engine-services">Services offered</Label>
+              <Textarea
+                id="post-engine-services"
+                value={postEngineServices}
+                onChange={(e) => setPostEngineServices(e.target.value)}
+                placeholder="e.g. Anxiety relief, smoking cessation, confidence building"
+                className="min-h-[80px] resize-y"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="post-engine-themes">Themes / topics</Label>
+              <Textarea
+                id="post-engine-themes"
+                value={postEngineThemes}
+                onChange={(e) => setPostEngineThemes(e.target.value)}
+                placeholder="e.g. Mind-body connection, subconscious change, relaxation"
+                className="min-h-[80px] resize-y"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="post-engine-expertise">Areas of expertise</Label>
+              <Textarea
+                id="post-engine-expertise"
+                value={postEngineExpertise}
+                onChange={(e) => setPostEngineExpertise(e.target.value)}
+                placeholder="e.g. Solution-focused hypnotherapy, NLP, 10+ years experience"
+                className="min-h-[80px] resize-y"
+              />
+            </div>
+            <Button onClick={handleSaveProfile} disabled={saving} className="rounded-xl">
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save profile"
+              )}
+            </Button>
           </CardContent>
         </Card>
       </AnimatedSection>

@@ -7,9 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Play, Download, Settings, FileText, Music, Activity, Loader2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, Play, Settings, FileText, Activity, Loader2, Pencil, Save } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 
 type ClientRow = {
   id: string;
@@ -38,6 +40,9 @@ export default function ClientProfilePage() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notesEditing, setNotesEditing] = useState(false);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [notesSaving, setNotesSaving] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -75,6 +80,40 @@ export default function ClientProfilePage() {
     }
     load();
   }, [id]);
+
+  const startNotesEdit = () => {
+    setNotesDraft(client?.notes ?? "");
+    setNotesEditing(true);
+  };
+
+  const saveNotes = async () => {
+    if (!client || !id) return;
+    setNotesSaving(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setNotesSaving(false);
+      return;
+    }
+    const { error: updateError } = await supabase
+      .from("clients")
+      .update({ notes: notesDraft.trim() || null, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("user_id", user.id);
+    setNotesSaving(false);
+    if (updateError) {
+      toast.error("Could not save notes");
+      return;
+    }
+    setClient((c) => (c ? { ...c, notes: notesDraft.trim() || null } : c));
+    setNotesEditing(false);
+    toast.success("Notes saved");
+  };
+
+  const cancelNotesEdit = () => {
+    setNotesEditing(false);
+    setNotesDraft(client?.notes ?? "");
+  };
 
   if (loading) {
     return (
@@ -271,11 +310,42 @@ export default function ClientProfilePage() {
                   })
                 )}
               </TabsContent>
-              <TabsContent value="notes" className="m-0 text-sm text-muted-foreground">
-                {client.notes ? (
-                  <p className="whitespace-pre-wrap">{client.notes}</p>
+              <TabsContent value="notes" className="m-0">
+                {notesEditing ? (
+                  <div className="space-y-3">
+                    <Textarea
+                      value={notesDraft}
+                      onChange={(e) => setNotesDraft(e.target.value)}
+                      placeholder="Private notes about this client..."
+                      className="min-h-[120px] resize-y text-sm"
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={saveNotes} disabled={notesSaving} className="gap-2">
+                        {notesSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        Save notes
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={cancelNotesEdit} disabled={notesSaving}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
                 ) : (
-                  <p>No private notes yet. Add notes when editing this client.</p>
+                  <div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="mb-2 gap-2 text-muted-foreground hover:text-foreground"
+                      onClick={startNotesEdit}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Edit notes
+                    </Button>
+                    {client.notes ? (
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{client.notes}</p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No private notes yet. Click Edit notes to add some.</p>
+                    )}
+                  </div>
                 )}
               </TabsContent>
               <TabsContent value="audio" className="m-0 text-sm text-muted-foreground">

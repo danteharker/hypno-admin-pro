@@ -26,6 +26,7 @@ import {
 import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 
 const FOCUS_OPTIONS = [
   { id: "focus-anxiety", label: "Anxiety / Stress", value: "Anxiety" },
@@ -140,11 +141,14 @@ export default function EditClientPage() {
         .eq("user_id", user.id);
       if (updateError) {
         setError(updateError.message);
+        toast.error(updateError.message);
         return;
       }
+      toast.success("Client updated");
       router.push(`/dashboard/clients/${id}`);
     } catch {
       setError("Something went wrong. Try again.");
+      toast.error("Something went wrong. Try again.");
     } finally {
       setIsSaving(false);
     }
@@ -156,7 +160,9 @@ export default function EditClientPage() {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
-    await supabase.from("clients").delete().eq("id", id).eq("user_id", user.id);
+    const { error: deleteError } = await supabase.from("clients").delete().eq("id", id).eq("user_id", user.id);
+    if (deleteError) toast.error("Could not delete client");
+    else toast.success("Client deleted");
     router.push("/dashboard/clients");
   };
 

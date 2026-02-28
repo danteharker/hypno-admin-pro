@@ -27,8 +27,8 @@ import {
   Pause,
   Square,
   Clock,
-  Settings2,
   SkipForward,
+  SkipBack,
   Maximize,
   Minus,
   Plus,
@@ -36,6 +36,8 @@ import {
   ArrowLeft,
   FileText,
   Presentation,
+  HelpCircle,
+  X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { PageHero } from "@/components/dashboard/page-hero";
@@ -123,6 +125,8 @@ export default function SessionPage() {
   const [sessionNotes, setSessionNotes] = useState("");
   const [savingSession, setSavingSession] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
+  const sessionContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -261,6 +265,78 @@ export default function SessionPage() {
     }
   }, [currentIndex, scriptContent.length]);
 
+  const handleSkipBack = useCallback(() => {
+    const prev = Math.max(0, currentIndex - 1);
+    if (prev === currentIndex) return;
+    const node = paragraphRefs.current[prev];
+    if (node) {
+      node.scrollIntoView({ behavior: "smooth", block: "center" });
+      setCurrentIndex(prev);
+    }
+  }, [currentIndex, scriptContent.length]);
+
+  const handleFullscreen = useCallback(() => {
+    const el = sessionContainerRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      el.requestFullscreen();
+    }
+  }, []);
+
+  useEffect(() => {
+    const target = sessionContainerRef.current;
+    if (!target) return;
+    const handler = () => {
+      if (document.fullscreenElement === target) {
+        target.classList.add("fullscreen");
+      } else {
+        target.classList.remove("fullscreen");
+      }
+    };
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      if (e.key === "?") {
+        setShowKeyboardHelp((v) => !v);
+        return;
+      }
+      if (e.key === " ") {
+        e.preventDefault();
+        setIsPlaying((p) => !p);
+        return;
+      }
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        handleSkipForward();
+        return;
+      }
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        handleSkipBack();
+        return;
+      }
+      if (e.key === "+" || e.key === "=") {
+        e.preventDefault();
+        setFontSize((f) => Math.min(48, f + 2));
+        return;
+      }
+      if (e.key === "-") {
+        e.preventDefault();
+        setFontSize((f) => Math.max(16, f - 2));
+        return;
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleSkipForward, handleSkipBack]);
+
   const handleEndSession = async () => {
     if (!selectedScript) return;
     if (client && clientId) {
@@ -376,6 +452,7 @@ export default function SessionPage() {
   return (
     <>
       <div
+        ref={sessionContainerRef}
         className={`flex flex-col h-[calc(100vh-theme(spacing.14)-theme(spacing.8))] w-full max-w-5xl mx-auto rounded-xl overflow-hidden border ${theme === "dark" ? "bg-zinc-800 text-zinc-100" : "bg-white text-zinc-900"}`}
       >
         <div
@@ -385,6 +462,11 @@ export default function SessionPage() {
             <h1 className="font-semibold">{selectedScript?.title ?? "Session"}</h1>
             <p className={`text-sm ${theme === "dark" ? "text-zinc-400" : "text-zinc-500"}`}>
               {client ? `Client: ${client.full_name}` : "Practice session"}
+              {scriptContent.length > 0 && (
+                <span className="ml-2 font-mono text-xs">
+                  · Block {currentIndex + 1} of {scriptContent.length}
+                </span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-6">
@@ -402,7 +484,7 @@ export default function SessionPage() {
             <Button
               variant="outline"
               size="sm"
-              className="text-zinc-800 hover:text-zinc-900"
+              className={theme === "dark" ? "text-zinc-300 hover:text-white border-zinc-500" : "text-zinc-600 hover:text-zinc-900 border-zinc-300"}
               onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
             >
               Toggle Theme
@@ -410,7 +492,7 @@ export default function SessionPage() {
             <Button
               variant="outline"
               size="sm"
-              className="text-zinc-800 hover:text-zinc-900"
+              className={theme === "dark" ? "text-zinc-300 hover:text-white border-zinc-500" : "text-zinc-600 hover:text-zinc-900 border-zinc-300"}
               onClick={() => setEndSessionOpen(true)}
             >
               {client ? "End session" : "Finish"}
@@ -463,9 +545,9 @@ export default function SessionPage() {
         </div>
 
         <div
-          className={`p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4 z-20 ${theme === "dark" ? "border-zinc-600/80 bg-zinc-700/70" : "border-zinc-200 bg-zinc-50"}`}
+          className={`p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 z-20 ${theme === "dark" ? "border-zinc-600/80 bg-zinc-700/70" : "border-zinc-200 bg-zinc-50"}`}
         >
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center justify-center sm:justify-start gap-2 w-full sm:w-auto order-2 sm:order-1">
             <Button
               variant="outline"
               size="icon"
@@ -473,6 +555,16 @@ export default function SessionPage() {
               onClick={() => setEndSessionOpen(true)}
             >
               <Square className="h-4 w-4 fill-current" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-12 w-12 rounded-full shrink-0"
+              onClick={handleSkipBack}
+              disabled={scriptContent.length === 0 || currentIndex <= 0}
+              aria-label="Previous block"
+            >
+              <SkipBack className="h-4 w-4" />
             </Button>
             <Button
               size="icon"
@@ -487,6 +579,7 @@ export default function SessionPage() {
               className="h-12 w-12 rounded-full shrink-0"
               onClick={handleSkipForward}
               disabled={scriptContent.length === 0 || currentIndex >= scriptContent.length - 1}
+              aria-label="Next block"
             >
               <SkipForward className="h-4 w-4" />
             </Button>
@@ -511,14 +604,14 @@ export default function SessionPage() {
               {scrollSpeed.toFixed(1)}x
             </span>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <div className="flex items-center justify-center sm:justify-end gap-1 sm:gap-2 w-full sm:w-auto order-3 shrink-0">
             <div
               className={`flex items-center border rounded-md mr-2 ${theme === "dark" ? "border-zinc-500 bg-zinc-700" : "border-zinc-200 bg-white"}`}
             >
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9"
+                className={`h-9 w-9 ${theme === "dark" ? "text-zinc-400 hover:text-white" : "text-zinc-600 hover:text-zinc-900"}`}
                 onClick={() => setFontSize((f) => Math.max(16, f - 2))}
               >
                 <Minus className="h-4 w-4" />
@@ -531,21 +624,62 @@ export default function SessionPage() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9"
+                className={`h-9 w-9 ${theme === "dark" ? "text-zinc-400 hover:text-white" : "text-zinc-600 hover:text-zinc-900"}`}
                 onClick={() => setFontSize((f) => Math.min(48, f + 2))}
               >
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-            <Button variant="outline" size="icon" className="h-10 w-10">
-              <Settings2 className="h-4 w-4" />
+            <Button
+              variant="outline"
+              size="icon"
+              className={`h-10 w-10 ${theme === "dark" ? "text-zinc-400 hover:text-white" : "text-zinc-500 hover:text-zinc-900"}`}
+              onClick={() => setShowKeyboardHelp((v) => !v)}
+              aria-label="Keyboard shortcuts"
+              title="Keyboard shortcuts (?)"
+            >
+              <HelpCircle className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="icon" className="h-10 w-10">
+            <Button
+              variant="outline"
+              size="icon"
+              className={`h-10 w-10 ${theme === "dark" ? "text-zinc-400 hover:text-white" : "text-zinc-500 hover:text-zinc-900"}`}
+              onClick={handleFullscreen}
+              aria-label="Fullscreen"
+            >
               <Maximize className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </div>
+
+      {showKeyboardHelp && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowKeyboardHelp(false)}
+          role="dialog"
+          aria-label="Keyboard shortcuts"
+        >
+          <div
+            className={`rounded-xl border p-6 max-w-sm w-full shadow-xl ${theme === "dark" ? "bg-zinc-800 border-zinc-600 text-zinc-100" : "bg-white border-zinc-200 text-zinc-900"}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">Keyboard shortcuts</h3>
+              <Button variant="ghost" size="icon" onClick={() => setShowKeyboardHelp(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <ul className="space-y-2 text-sm">
+              <li><kbd className="px-1.5 py-0.5 rounded bg-zinc-600 text-zinc-200">Space</kbd> Play / Pause</li>
+              <li><kbd className="px-1.5 py-0.5 rounded bg-zinc-600 text-zinc-200">←</kbd> <kbd className="px-1.5 py-0.5 rounded bg-zinc-600 text-zinc-200">↑</kbd> Previous block</li>
+              <li><kbd className="px-1.5 py-0.5 rounded bg-zinc-600 text-zinc-200">→</kbd> <kbd className="px-1.5 py-0.5 rounded bg-zinc-600 text-zinc-200">↓</kbd> Next block</li>
+              <li><kbd className="px-1.5 py-0.5 rounded bg-zinc-600 text-zinc-200">+</kbd> <kbd className="px-1.5 py-0.5 rounded bg-zinc-600 text-zinc-200">−</kbd> Font size</li>
+              <li><kbd className="px-1.5 py-0.5 rounded bg-zinc-600 text-zinc-200">?</kbd> Show this help</li>
+            </ul>
+          </div>
+        </div>
+      )}
 
       <Dialog open={endSessionOpen} onOpenChange={setEndSessionOpen}>
         <DialogContent className="sm:max-w-md">

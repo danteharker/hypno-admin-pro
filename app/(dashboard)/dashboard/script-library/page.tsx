@@ -17,7 +17,7 @@ export default function ScriptLibraryMenuPage() {
       sections={sections}
       emptyMessage={
         <p>
-          No categories yet. Run <code className="text-xs bg-muted px-1 rounded">node scripts/parse-script-library.js</code> to build the library.
+          No script categories available yet. Check back soon — we&apos;re adding new scripts regularly.
         </p>
       }
     />

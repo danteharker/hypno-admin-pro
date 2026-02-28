@@ -27,6 +27,8 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { PageHero } from "@/components/dashboard/page-hero";
 import { AnimatedSection } from "@/components/motion/animated-section";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "sonner";
 
 type ClientRow = {
   id: string;
@@ -69,6 +71,23 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<ClientRow | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [clientsPage, setClientsPage] = useState(1);
+
+  const handleDeleteClient = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    const supabase = createClient();
+    const { error } = await supabase.from("clients").delete().eq("id", deleteTarget.id);
+    if (error) toast.error("Could not delete client");
+    else {
+      toast.success("Client deleted");
+      setClients((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+    }
+    setDeleteTarget(null);
+    setIsDeleting(false);
+  };
 
   useEffect(() => {
     async function load() {
@@ -130,8 +149,19 @@ export default function ClientsPage() {
       (c.email?.toLowerCase().includes(search.toLowerCase()) ?? false)
   );
   const totalCount = clients.length;
-  const activeThisWeek = 0; // placeholder until we filter sessions by week
-  const sharedAudioCount = 0; // placeholder
+  const PAGE_SIZE = 20;
+  const paginatedClients = filtered.slice(0, clientsPage * PAGE_SIZE);
+  const hasMoreClients = filtered.length > paginatedClients.length;
+
+  useEffect(() => {
+    setClientsPage(1);
+  }, [search]);
+
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  const activeThisWeek = Object.entries(lastSessionByClient).filter(
+    ([, date]) => date && new Date(date) >= oneWeekAgo
+  ).length;
 
   if (loading) {
     return (
@@ -188,19 +218,21 @@ export default function ClientsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{activeThisWeek}</div>
-              <p className="text-xs text-muted-foreground">Sessions scheduled</p>
+              <p className="text-xs text-muted-foreground">Sessions in last 7 days</p>
             </CardContent>
           </Card>
           <Card className="bg-accent-teal/[0.06] border-l-4 border-l-accent-teal border-t-0 border-r-0 border-b-0 hover-lift shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Shared Audio</CardTitle>
+              <CardTitle className="text-sm font-medium">New Clients</CardTitle>
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-teal/12 text-accent-teal icon-glow-teal">
-                <Mail className="h-5 w-5" />
+                <User className="h-5 w-5" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{sharedAudioCount}</div>
-              <p className="text-xs text-muted-foreground">Downloads this month</p>
+              <div className="text-2xl font-bold">
+                {clients.filter((c) => (sessionCountByClient[c.id] ?? 0) === 0 && !c.archived).length}
+              </div>
+              <p className="text-xs text-muted-foreground">No sessions yet</p>
             </CardContent>
           </Card>
         </div>
@@ -221,8 +253,8 @@ export default function ClientsPage() {
       </AnimatedSection>
 
       <AnimatedSection delay={0.15}>
-        <div className="rounded-2xl border border-border/40 bg-card/50 shadow-sm overflow-hidden backdrop-blur-sm">
-          <Table className="[&_tr]:border-border/40">
+        <div className="rounded-2xl border border-border/40 bg-card/50 shadow-sm overflow-x-auto backdrop-blur-sm">
+          <Table className="[&_tr]:border-border/40 min-w-[600px]">
             <TableHeader className="bg-muted/10">
               <TableRow className="hover:bg-transparent">
                 <TableHead className="w-[300px] py-4 text-xs font-medium uppercase tracking-wider text-muted-foreground/80">Client</TableHead>
@@ -243,7 +275,8 @@ export default function ClientsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((client) => {
+              <>
+              {paginatedClients.map((client) => {
                 const sessionCount = sessionCountByClient[client.id] ?? 0;
                 const lastSession = lastSessionByClient[client.id] ?? null;
                 const status = statusFromClient(client, sessionCount);
@@ -329,7 +362,7 @@ export default function ClientsPage() {
                         <DropdownMenuTrigger asChild>
                           <Button
                             variant="ghost"
-                            className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-8 w-8 p-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                           >
                             <span className="sr-only">Open menu</span>
                             <MoreHorizontal className="h-4 w-4" />
@@ -345,27 +378,47 @@ export default function ClientsPage() {
                               Start Session
                             </Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem>Share Audio Link</DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem asChild>
                             <Link href={`/dashboard/clients/${client.id}/edit`}>Edit</Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" asChild>
-                            <Link href={`/dashboard/clients/${client.id}/edit`}>
-                              Delete
-                            </Link>
+                          <DropdownMenuItem
+                            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                            onClick={() => setDeleteTarget(client)}
+                          >
+                            Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 );
-              })
+              })}
+              {hasMoreClients && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-4">
+                    <Button variant="outline" size="sm" onClick={() => setClientsPage((p) => p + 1)} className="rounded-xl">
+                      Load more ({filtered.length - paginatedClients.length} remaining)
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              )}
+            </>
             )}
           </TableBody>
         </Table>
         </div>
       </AnimatedSection>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete client"
+        description={`Are you sure you want to delete ${deleteTarget?.full_name ?? "this client"}? This will permanently remove their profile and cannot be undone.`}
+        confirmLabel="Delete client"
+        loading={isDeleting}
+        onConfirm={handleDeleteClient}
+      />
     </div>
   );
 }

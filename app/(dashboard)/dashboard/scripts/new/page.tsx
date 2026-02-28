@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,6 +41,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { PageHero } from "@/components/dashboard/page-hero";
+import { FeatureLockOverlay } from "@/components/dashboard/feature-lock-overlay";
+import { UsageIndicator } from "@/components/dashboard/usage-indicator";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "sonner";
 import { AnimatedSection } from "@/components/motion/animated-section";
 import type {
   ScriptCategory,
@@ -114,6 +118,20 @@ export default function NewScriptPage() {
   const [lengthenSection, setLengthenSection] =
     useState<ScriptSectionKey | null>(null);
   const [savingCombine, setSavingCombine] = useState(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+
+  const hasContent =
+    clientProfile.trim() !== "" ||
+    blankTitle.trim() !== "" ||
+    SCRIPT_SECTIONS.some((k) => (sectionTexts[k] ?? "").trim() !== "");
+
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasContent) e.preventDefault();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasContent]);
 
   const setSectionText = (section: ScriptSectionKey, value: string) => {
     setSectionTexts((prev) => ({ ...prev, [section]: value }));
@@ -270,11 +288,14 @@ export default function NewScriptPage() {
         .single();
       if (error) {
         setGenerateError(error.message);
+        toast.error(error.message);
         return;
       }
+      toast.success("Script created");
       router.push(`/dashboard/scripts/${script.id}`);
     } catch {
       setGenerateError("Something went wrong. Try again.");
+      toast.error("Something went wrong. Try again.");
     } finally {
       setSavingCombine(false);
     }
@@ -300,8 +321,10 @@ export default function NewScriptPage() {
       .single();
     if (error) {
       setGenerateError(error.message);
+      toast.error(error.message);
       return;
     }
+    toast.success("Script created");
     router.push(`/dashboard/scripts/${script.id}`);
   };
 
@@ -321,13 +344,32 @@ export default function NewScriptPage() {
   );
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-12 w-full">
-      <PageHero
-        icon={Sparkles}
-        title="Create Script"
-        description="Build your script section by section with AI, or start from a blank canvas."
+    <FeatureLockOverlay>
+      <div className="max-w-4xl mx-auto space-y-8 pb-12 w-full">
+        <PageHero
+          icon={Sparkles}
+          title="Create Script"
+          description="Build your script section by section with AI, or start from a blank canvas."
         accentColor="emerald"
         backHref="/dashboard/scripts"
+        onBackClick={() =>
+          hasContent ? setLeaveConfirmOpen(true) : router.push("/dashboard/scripts")
+        }
+      />
+        <UsageIndicator type="script_generation" className="mt-2" />
+
+      <ConfirmDialog
+        open={leaveConfirmOpen}
+        onOpenChange={setLeaveConfirmOpen}
+        title="Unsaved changes"
+        description="You have unsaved work. Leave anyway? Your progress will be lost."
+        confirmLabel="Leave"
+        cancelLabel="Stay"
+        variant="destructive"
+        onConfirm={() => {
+          router.push("/dashboard/scripts");
+          setLeaveConfirmOpen(false);
+        }}
       />
 
       <AnimatedSection delay={0.05}>
@@ -870,7 +912,9 @@ export default function NewScriptPage() {
               <Button
                 variant="ghost"
                 type="button"
-                onClick={() => router.push("/dashboard/scripts")}
+                onClick={() =>
+                  hasContent ? setLeaveConfirmOpen(true) : router.push("/dashboard/scripts")
+                }
               >
                 Cancel
               </Button>
@@ -883,6 +927,7 @@ export default function NewScriptPage() {
         </TabsContent>
       </Tabs>
       </AnimatedSection>
-    </div>
+      </div>
+    </FeatureLockOverlay>
   );
 }

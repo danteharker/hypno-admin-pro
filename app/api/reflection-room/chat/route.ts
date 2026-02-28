@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getReflectionRoomReply } from "@/lib/openai-reflection-room";
+import { checkAccess, recordUsage } from "@/lib/api-gate";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -11,6 +12,14 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "You must be signed in to use the Reflection Room." },
       { status: 401 }
+    );
+  }
+
+  const access = await checkAccess(supabase, user.id, "ai_tool");
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: access.error, used: access.used, limit: access.limit },
+      { status: access.status }
     );
   }
 
@@ -49,6 +58,7 @@ export async function POST(request: Request) {
 
   try {
     const { reply } = await getReflectionRoomReply(thread);
+    await recordUsage(supabase, user.id, "ai_tool");
     return NextResponse.json({ reply });
   } catch (err) {
     const message =

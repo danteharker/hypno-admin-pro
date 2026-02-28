@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateSpeech, type TTSVoiceId, type TTSPacing } from "@/lib/openai-tts";
+import { checkAccess, recordUsage } from "@/lib/api-gate";
 
 const VOICE_IDS: TTSVoiceId[] = ["onyx", "shimmer", "alloy", "nova"];
 const PACING_OPTIONS: TTSPacing[] = ["extra-slow", "very-slow", "slow", "normal"];
@@ -19,6 +20,14 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const access = await checkAccess(supabase, user.id, "audio_generation");
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: access.error, used: access.used, limit: access.limit },
+      { status: access.status }
+    );
   }
 
   let body: { text?: string; voiceId?: string; pacing?: string };
@@ -41,6 +50,7 @@ export async function POST(request: Request) {
 
   try {
     const buffer = await generateSpeech({ text, voiceId, pacing });
+    await recordUsage(supabase, user.id, "audio_generation");
     return new NextResponse(buffer as unknown as BodyInit, {
       status: 200,
       headers: {

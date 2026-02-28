@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { reimagineScript } from "@/lib/openai-reimagine";
+import { checkAccess, recordUsage } from "@/lib/api-gate";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -9,6 +10,14 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const access = await checkAccess(supabase, user.id, "script_generation");
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: access.error, used: access.used, limit: access.limit },
+      { status: access.status }
+    );
   }
 
   let body: { content: string; title: string; section: string };
@@ -39,6 +48,7 @@ export async function POST(request: Request) {
 
     if (error) throw new Error(error.message);
 
+    await recordUsage(supabase, user.id, "script_generation");
     return NextResponse.json({ id: newScript.id, content: newContent });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Reimagination failed";

@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Mic, Plus, Headphones, Loader2, Download, Play, Pause, Trash2 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Mic, Plus, Headphones, Loader2, Download, Play, Pause, Trash2, Volume2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { PageHero } from "@/components/dashboard/page-hero";
 import { AnimatedSection } from "@/components/motion/animated-section";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "sonner";
 
 const BUCKET = "audio";
 
@@ -41,6 +44,68 @@ export default function AudioListPage() {
   const [playUrl, setPlayUrl] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AudioTrack | null>(null);
+  const AUDIO_PAGE_SIZE = 20;
+  const [audioPage, setAudioPage] = useState(1);
+  const paginatedTracks = tracks.slice(0, audioPage * AUDIO_PAGE_SIZE);
+  const hasMoreTracks = tracks.length > paginatedTracks.length;
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isPaused, setIsPaused] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const seekDraggingRef = useRef(false);
+  const playingTrack = playingId ? tracks.find((t) => t.id === playingId) : null;
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    const onTimeUpdate = () => {
+      if (!seekDraggingRef.current) setCurrentTime(el.currentTime);
+    };
+    const onLoadedMetadata = () => setDuration(el.duration);
+    const onDurationChange = () => setDuration(el.duration);
+    const onEnded = () => {
+      setPlayUrl(null);
+      setPlayingId(null);
+      setCurrentTime(0);
+      setDuration(0);
+      setIsPaused(false);
+    };
+    el.addEventListener("timeupdate", onTimeUpdate);
+    el.addEventListener("loadedmetadata", onLoadedMetadata);
+    el.addEventListener("durationchange", onDurationChange);
+    el.addEventListener("ended", onEnded);
+    return () => {
+      el.removeEventListener("timeupdate", onTimeUpdate);
+      el.removeEventListener("loadedmetadata", onLoadedMetadata);
+      el.removeEventListener("durationchange", onDurationChange);
+      el.removeEventListener("ended", onEnded);
+    };
+  }, [playUrl]);
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (el) el.volume = volume;
+  }, [volume]);
+
+  const handleSeek = (value: number[]) => {
+    const t = value[0] ?? 0;
+    seekDraggingRef.current = false;
+    if (audioRef.current) audioRef.current.currentTime = t;
+    setCurrentTime(t);
+  };
+
+  const handleSeekDrag = () => {
+    seekDraggingRef.current = true;
+  };
+
+  useEffect(() => {
+    if (!playUrl) {
+      setCurrentTime(0);
+      setDuration(0);
+    }
+  }, [playUrl]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -64,10 +129,17 @@ export default function AudioListPage() {
 
   const handlePlay = async (track: AudioTrack) => {
     if (playingId === track.id) {
-      setPlayUrl(null);
-      setPlayingId(null);
+      const el = audioRef.current;
+      if (isPaused && el) {
+        el.play();
+        setIsPaused(false);
+      } else if (!isPaused && el) {
+        el.pause();
+        setIsPaused(true);
+      }
       return;
     }
+    setIsPaused(false);
     const supabase = createClient();
     const { data } = await supabase.storage
       .from(BUCKET)
@@ -92,7 +164,6 @@ export default function AudioListPage() {
   };
 
   const handleDelete = async (track: AudioTrack) => {
-    if (!confirm(`Delete "${track.title}"? This cannot be undone.`)) return;
     setDeletingId(track.id);
     if (playingId === track.id) {
       setPlayUrl(null);
@@ -100,9 +171,14 @@ export default function AudioListPage() {
     }
     const supabase = createClient();
     await supabase.storage.from(BUCKET).remove([track.file_path]);
-    await supabase.from("audio_files").delete().eq("id", track.id);
-    setTracks((prev) => prev.filter((t) => t.id !== track.id));
+    const { error } = await supabase.from("audio_files").delete().eq("id", track.id);
+    if (error) toast.error("Could not delete track");
+    else {
+      toast.success("Track deleted");
+      setTracks((prev) => prev.filter((t) => t.id !== track.id));
+    }
     setDeletingId(null);
+    setDeleteTarget(null);
   };
 
   return (
@@ -144,7 +220,7 @@ export default function AudioListPage() {
       ) : (
         <AnimatedSection delay={0.05}>
           <div className="space-y-3">
-            {tracks.map((track) => (
+            {paginatedTracks.map((track) => (
               <Card
                 key={track.id}
                 className="overflow-hidden accent-bar accent-bar-teal bg-accent-teal/[0.06] border-accent-teal/20 hover-lift shadow-sm"
@@ -183,7 +259,7 @@ export default function AudioListPage() {
                       variant="outline"
                       size="icon"
                       className="h-10 w-10 rounded-full shrink-0"
-                      onClick={() => handleDelete(track)}
+                      onClick={() => setDeleteTarget(track)}
                       disabled={deletingId === track.id}
                       title="Delete"
                       aria-label="Delete"
@@ -198,20 +274,85 @@ export default function AudioListPage() {
                 </CardContent>
               </Card>
             ))}
+            {hasMoreTracks && (
+              <div className="flex justify-center pt-4">
+                <Button variant="outline" onClick={() => setAudioPage((p) => p + 1)} className="rounded-xl">
+                  Load more ({tracks.length - paginatedTracks.length} remaining)
+                </Button>
+              </div>
+            )}
           </div>
         </AnimatedSection>
       )}
 
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete audio track"
+        description={`Are you sure you want to delete "${deleteTarget?.title ?? "this track"}"? This action cannot be undone.`}
+        confirmLabel="Delete track"
+        loading={!!deletingId}
+        onConfirm={() => deleteTarget && handleDelete(deleteTarget)}
+      />
+
       {playUrl && (
-        <audio
-          src={playUrl}
-          autoPlay
-          onEnded={() => {
-            setPlayUrl(null);
-            setPlayingId(null);
-          }}
-          className="hidden"
-        />
+        <>
+          <audio ref={audioRef} src={playUrl} autoPlay />
+          <div className="sticky bottom-0 left-0 right-0 z-10 rounded-t-2xl border border-t border-border/40 bg-card shadow-lg p-4 space-y-3">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 rounded-full shrink-0"
+                onClick={() => {
+                  const el = audioRef.current;
+                  if (isPaused && el) {
+                    el.play();
+                    setIsPaused(false);
+                  } else if (!isPaused && el) {
+                    el.pause();
+                    setIsPaused(true);
+                  }
+                }}
+                aria-label={isPaused ? "Play" : "Pause"}
+              >
+                {isPaused ? <Play className="h-4 w-4 ml-0.5" /> : <Pause className="h-4 w-4" />}
+              </Button>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{playingTrack?.title ?? "Playing"}</p>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-xs font-mono text-muted-foreground tabular-nums">
+                    {formatDuration(Math.floor(currentTime))}
+                  </span>
+                  <Slider
+                    value={[Number.isFinite(duration) && duration > 0 ? currentTime : 0]}
+                    max={Number.isFinite(duration) && duration > 0 ? duration : 100}
+                    step={0.1}
+                    onValueCommit={handleSeek}
+                    onValueChange={(v) => {
+                      handleSeekDrag();
+                      setCurrentTime(v[0] ?? 0);
+                    }}
+                    className="flex-1 max-w-[200px] sm:max-w-none"
+                  />
+                  <span className="text-xs font-mono text-muted-foreground tabular-nums w-10">
+                    {formatDuration(Number.isFinite(duration) ? Math.floor(duration) : null)}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 w-24 shrink-0">
+                <Volume2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                <Slider
+                  value={[volume]}
+                  max={1}
+                  step={0.05}
+                  onValueChange={(v) => setVolume(v[0] ?? 1)}
+                  className="flex-1"
+                />
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

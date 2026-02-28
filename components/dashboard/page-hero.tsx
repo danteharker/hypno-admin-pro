@@ -54,6 +54,7 @@ export function PageHero({
   description,
   accentColor = "emerald",
   backHref,
+  onBackClick,
   children,
 }: {
   icon: LucideIcon;
@@ -61,6 +62,8 @@ export function PageHero({
   description: string;
   accentColor?: PageHeroAccent;
   backHref?: string;
+  /** When provided, back button calls this instead of navigating to backHref (e.g. to show unsaved warning). */
+  onBackClick?: () => void;
   children?: React.ReactNode;
 }) {
   const config = accentConfig[accentColor];
@@ -79,13 +82,18 @@ export function PageHero({
         </div>
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-start justify-between gap-6">
           <div className="flex items-start gap-4 min-w-0">
-            {backHref && (
-              <Link href={backHref}>
-                <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl shrink-0">
+            {(backHref || onBackClick) &&
+              (onBackClick ? (
+                <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl shrink-0" onClick={onBackClick}>
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
-              </Link>
-            )}
+              ) : (
+                <Link href={backHref!}>
+                  <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl shrink-0">
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
+                </Link>
+              ))}
             <div
               className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${config.iconBg} ${config.iconColor} ${config.iconGlow}`}
             >

@@ -14,7 +14,9 @@ import {
 } from "@/components/ui/card";
 import { Sparkles, Loader2, Copy, Check, Info } from "lucide-react";
 import { PageHero } from "@/components/dashboard/page-hero";
+import { FeatureLockOverlay } from "@/components/dashboard/feature-lock-overlay";
 import { AnimatedSection } from "@/components/motion/animated-section";
+import { toast } from "sonner";
 
 export default function AffirmationsPage() {
   const [topic, setTopic] = useState("");
@@ -38,7 +40,9 @@ export default function AffirmationsPage() {
       if (!res.ok) throw new Error(data.error || "Generation failed");
       setAffirmations(data.affirmations ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
+      const msg = e instanceof Error ? e.message : "Something went wrong";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -46,23 +50,38 @@ export default function AffirmationsPage() {
 
   const handleCopyAll = async () => {
     if (!affirmations?.length) return;
-    await navigator.clipboard.writeText(affirmations.join("\n\n"));
-    setCopiedIndex("all");
-    setTimeout(() => setCopiedIndex(null), 2000);
+    try {
+      await navigator.clipboard.writeText(affirmations.join("\n\n"));
+      setCopiedIndex("all");
+      setTimeout(() => setCopiedIndex(null), 2000);
+      toast.success("Copied to clipboard");
+    } catch {
+      toast.error("Could not copy");
+    }
+  };
+
+  const handleRegenerate = () => {
+    if (topic.trim()) handleGenerate();
   };
 
   const handleCopyOne = async (text: string, index: number) => {
     if (!text) return;
-    await navigator.clipboard.writeText(text);
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
+      toast.success("Copied to clipboard");
+    } catch {
+      toast.error("Could not copy");
+    }
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-12">
-      <PageHero
-        icon={Sparkles}
-        title="Affirmations"
+    <FeatureLockOverlay>
+      <div className="max-w-3xl mx-auto space-y-6 pb-12">
+        <PageHero
+          icon={Sparkles}
+          title="Affirmations"
         description="Enter a topic, goal, or intention to generate 10 ready-to-use affirmations."
         accentColor="amber"
         backHref="/dashboard"
@@ -137,12 +156,23 @@ export default function AffirmationsPage() {
           <Card className="border-border/40 accent-bar accent-bar-amber overflow-hidden shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-base">Your 10 affirmations</CardTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCopyAll}
-                className="gap-2"
-              >
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRegenerate}
+                  disabled={loading}
+                  className="gap-2"
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  Regenerate
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyAll}
+                  className="gap-2"
+                >
                 {copiedIndex === "all" ? (
                   <>
                     <Check className="h-4 w-4" />
@@ -155,6 +185,7 @@ export default function AffirmationsPage() {
                   </>
                 )}
               </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <ul className="space-y-3">
@@ -189,6 +220,7 @@ export default function AffirmationsPage() {
           </Card>
         </AnimatedSection>
       )}
-    </div>
+      </div>
+    </FeatureLockOverlay>
   );
 }

@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { ClientOnly } from "@/components/client-only";
+import { getSubscriptionStatus } from "@/lib/subscription";
+import { SubscriptionProvider } from "@/lib/subscription-context";
 
 export default async function DashboardLayout({
   children,
@@ -17,6 +19,8 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  const subscriptionInfo = await getSubscriptionStatus(supabase, user.id);
+
   return (
     <ClientOnly
       fallback={
@@ -29,7 +33,13 @@ export default async function DashboardLayout({
         </div>
       }
     >
-      <DashboardShell>{children}</DashboardShell>
+      <SubscriptionProvider
+        status={subscriptionInfo.status}
+        trialDaysRemaining={subscriptionInfo.trialDaysRemaining}
+        isActive={subscriptionInfo.isActive}
+      >
+        <DashboardShell>{children}</DashboardShell>
+      </SubscriptionProvider>
     </ClientOnly>
   );
 }

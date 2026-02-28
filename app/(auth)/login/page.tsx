@@ -98,6 +98,11 @@ export default function LoginPage() {
                 Sign up
               </Link>
             </p>
+            <p className="text-center">
+              <Link href="/" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
+                Back to home
+              </Link>
+            </p>
           </CardFooter>
         </form>
       </Card>

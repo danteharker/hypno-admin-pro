@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MessageCircle, Send, Loader2, Trash2, Wrench } from "lucide-react";
 import { PageHero } from "@/components/dashboard/page-hero";
+import { FeatureLockOverlay } from "@/components/dashboard/feature-lock-overlay";
 import { AnimatedSection } from "@/components/motion/animated-section";
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -64,10 +65,11 @@ export default function ReflectionRoomPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-12">
-      <PageHero
-        icon={MessageCircle}
-        title="Reflection Room"
+    <FeatureLockOverlay>
+      <div className="max-w-3xl mx-auto space-y-6 pb-12">
+        <PageHero
+          icon={MessageCircle}
+          title="Reflection Room"
         description="Chat through client work in confidence. Nothing is saved."
         accentColor="rose"
         backHref="/dashboard"
@@ -182,6 +184,7 @@ export default function ReflectionRoomPage() {
         </p>
       </div>
       </AnimatedSection>
-    </div>
+      </div>
+    </FeatureLockOverlay>
   );
 }

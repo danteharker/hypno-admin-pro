@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { CommandPalette } from "@/components/dashboard/command-palette";
 import { motion } from "framer-motion";
 import {
   FileText,
@@ -19,6 +20,7 @@ import {
   MessageCircle,
   SlidersHorizontal,
   LogOut,
+  Search,
 } from "lucide-react";
 import {
   Sidebar,
@@ -37,6 +39,8 @@ import {
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useSubscription } from "@/lib/subscription-context";
+import { UpgradeBanner } from "@/components/dashboard/upgrade-banner";
 
 type NavItem = {
   label: string;
@@ -114,10 +118,57 @@ function NavSection({ title, items }: { title: string; items: NavItem[] }) {
   );
 }
 
+const SEGMENT_LABELS: Record<string, string> = {
+  dashboard: "Dashboard",
+  scripts: "Scripts",
+  "script-library": "Script Library",
+  "new": "New",
+  audio: "Audio",
+  clients: "Clients",
+  session: "Session",
+  suggestions: "Suggestions",
+  affirmations: "Affirmations",
+  "tool-generator": "Tool Generator",
+  "random-post-engine": "Random Post Engine",
+  "reflection-room": "Reflection Room",
+  settings: "Settings",
+  edit: "Edit",
+};
+
+function Breadcrumbs() {
+  const pathname = usePathname();
+  const segments = pathname?.split("/").filter(Boolean) ?? [];
+  if (segments.length <= 1) return null;
+  const crumbs = segments.map((seg, i) => {
+    const href = "/" + segments.slice(0, i + 1).join("/");
+    const label = SEGMENT_LABELS[seg] ?? (seg.length === 36 ? "…" : seg);
+    return { href, label };
+  });
+  return (
+    <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm text-muted-foreground">
+      {crumbs.map((c, i) => (
+        <span key={c.href} className="flex items-center gap-2">
+          {i > 0 && <span className="opacity-50">/</span>}
+          {i === crumbs.length - 1 ? (
+            <span className="font-medium text-foreground">{c.label}</span>
+          ) : (
+            <Link href={c.href} className="hover:text-foreground transition-colors">
+              {c.label}
+            </Link>
+          )}
+        </span>
+      ))}
+    </nav>
+  );
+}
+
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const { status, trialDaysRemaining } = useSubscription();
   const [userName, setUserName] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [commandOpen, setCommandOpen] = useState(false);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -170,6 +221,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <NavSection title="Marketing" items={marketing} />
         </SidebarContent>
         <SidebarFooter className="border-t border-sidebar-border/40 mt-auto py-3 px-2">
+          {status === "trialing" && trialDaysRemaining != null && (
+            <div className="px-2 pb-2">
+              <span className="text-xs font-medium text-primary">
+                {trialDaysRemaining} day{trialDaysRemaining !== 1 ? "s" : ""} left in trial
+              </span>
+            </div>
+          )}
           {(userName || userEmail) && (
             <div className="px-2 pb-2 flex items-center gap-2 min-w-0">
               <Avatar className="h-8 w-8 shrink-0">
@@ -209,13 +267,30 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <SidebarInset className="bg-background">
         <header className="flex h-16 shrink-0 items-center gap-4 border-b border-border/40 px-6 sticky top-0 bg-background/80 backdrop-blur-md z-10">
           <SidebarTrigger className="-ml-2 hover:bg-muted rounded-md transition-smooth" />
-          <div className="flex-1" />
-          <div className="flex items-center gap-4">
+          <div className="flex-1 flex items-center min-w-0">
+            <Breadcrumbs />
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCommandOpen(true)}
+              className="flex items-center gap-2 rounded-lg border border-border/40 bg-muted/30 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            >
+              <Search className="h-4 w-4" />
+              <span className="hidden sm:inline">Search...</span>
+              <kbd className="hidden sm:inline pointer-events-none h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100">
+                ⌘K
+              </kbd>
+            </button>
             <ThemeToggle />
             <div className="h-5 w-px bg-border/60 mx-1" />
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-6 md:p-8 lg:p-10">{children}</main>
+        <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+        <main className="flex-1 overflow-auto p-6 md:p-8 lg:p-10">
+          <UpgradeBanner />
+          <div className="mt-4">{children}</div>
+        </main>
       </SidebarInset>
     </SidebarProvider>
   );
